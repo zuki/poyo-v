@@ -13,7 +13,7 @@ def split(file_name):
 
     for i, line in enumerate(line_list):
         byte_list = list(line)
-        if i < 16384:
+        if i < 4096:
             line_list_0.append(''.join(byte_list))
         else:
             line_list_1.append(''.join(byte_list))

@@ -34,7 +34,7 @@ app.bin: app.elf
 # バイナリファイルから.hex形式ファイルを生成
 app.hex: app.bin
 	hexdump -v -e '1/4 "%08x" "\n"' $< > app_im.hex
-	cat $(MEM_INIT) app_im.hex > $@
+	cp app_im.hex $@
 	rm -f app_im.hex
 
 # .hex形式ファイルを命令メモリ用ファイルとデータメモリ用ファイルへと分割

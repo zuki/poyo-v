@@ -3,10 +3,10 @@
 #
 
 # リポジトリのルートディレクトリの場所を環境に合わせて指定(要変更)
-PROJECT_ROOT = $(HOME)/poyo-v
+PROJECT_ROOT = $(HOME)/develop/max1000/poyo-v
 
 # GCCのインストールパスを環境に合わせて指定(要変更)
-GCC_DIR = /opt/riscv
+GCC_DIR = /usr/local/riscv32im
 
 # GCCのバージョンを環境に合わせて指定(要変更)
 GCC_VERSION = 9.2.0
@@ -29,7 +29,7 @@ OBJDUMP = $(GCC_TOOLS)/$(GCC_PREFIX)objdump
 
 CFLAGS = \
 	-g \
-	-O3 \
+	-O0 \
 	-fno-zero-initialized-in-bss \
 	-ffreestanding \
 	-fno-builtin \
@@ -38,11 +38,8 @@ CFLAGS = \
 	-nostartfiles \
 	-mstrict-align \
 	-I$(INCLUDE_ROOT) \
-	-march=rv32i \
-
-#-march=rv32im \
-#-mno-div \
-
+	-march=rv32im \
+	-mno-div \
 
 LDFLAGS= \
 	-static \
