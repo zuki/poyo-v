@@ -22,7 +22,7 @@ module decoder (
     // internal signal
     wire [6:0] opcode;
     wire [2:0] funct3;
-    wire [4:0] funct5;
+    wire [6:0] funct7;
     wire [4:0] rd;
 
     // op_type
@@ -34,8 +34,8 @@ module decoder (
 
     // funct
     assign funct3 = insn[14:12];
-    assign funct5 = insn[31:27];
-    
+    assign funct7 = insn[31:25];
+
     // destination
     assign rd = insn[11:7];
 
@@ -106,7 +106,7 @@ module decoder (
                     end
                 endcase
             end
-            `BRANCH: begin                          
+            `BRANCH: begin
                 case (funct3)
                     3'b000: begin  // BEQ
                         alucode  =  `ALU_BEQ;
@@ -180,7 +180,7 @@ module decoder (
                     end
                 endcase
             end
-            `LOAD: begin                          
+            `LOAD: begin
                 case (funct3)
                     3'b000: begin  // LB
                         alucode  =  `ALU_LB;
@@ -244,7 +244,7 @@ module decoder (
                     end
                 endcase
             end
-            `STORE: begin                          
+            `STORE: begin
                 case (funct3)
                     3'b000: begin  // SB
                         alucode  =  `ALU_SB;
@@ -287,11 +287,21 @@ module decoder (
                         dst_type =  `REG_NONE;
                     end
                 endcase
-            end                             
-            `OPIMM: begin                          
+            end
+            `OPIMM: begin
                 case (funct3)
                     3'b000: begin  // ADDI
                         alucode  =  `ALU_ADD;
+                        reg_we   =  `ENABLE;
+                        is_load  =  `DISABLE;
+                        is_store =  `DISABLE;
+                        aluop1_type = `OP_TYPE_REG;
+                        aluop2_type = `OP_TYPE_IMM;
+                        op_type  =  `TYPE_I;
+                        dst_type =  `REG_RD;
+                    end
+                    3'b001: begin  // SLLI
+                        alucode  =  `ALU_SLL;
                         reg_we   =  `ENABLE;
                         is_load  =  `DISABLE;
                         is_store =  `DISABLE;
@@ -330,38 +340,8 @@ module decoder (
                         op_type  =  `TYPE_I;
                         dst_type =  `REG_RD;
                     end
-                    3'b110: begin  // ORI
-                        alucode  =  `ALU_OR;
-                        reg_we   =  `ENABLE;
-                        is_load  =  `DISABLE;
-                        is_store =  `DISABLE;
-                        aluop1_type = `OP_TYPE_REG;
-                        aluop2_type = `OP_TYPE_IMM;
-                        op_type  =  `TYPE_I;
-                        dst_type =  `REG_RD;
-                    end
-                    3'b111: begin  // ANDI
-                        alucode  =  `ALU_AND;
-                        reg_we   =  `ENABLE;
-                        is_load  =  `DISABLE;
-                        is_store =  `DISABLE;
-                        aluop1_type = `OP_TYPE_REG;
-                        aluop2_type = `OP_TYPE_IMM;
-                        op_type  =  `TYPE_I;
-                        dst_type =  `REG_RD;
-                    end
-                    3'b001: begin  // SLLI
-                        alucode  =  `ALU_SLL;
-                        reg_we   =  `ENABLE;
-                        is_load  =  `DISABLE;
-                        is_store =  `DISABLE;
-                        aluop1_type = `OP_TYPE_REG;
-                        aluop2_type = `OP_TYPE_IMM;
-                        op_type  =  `TYPE_I;
-                        dst_type =  `REG_RD;
-                    end
                     3'b101: begin
-                        case (funct5[3])
+                        case (funct7[5])
                             1'b0: begin  // SRLI
                                 alucode  =  `ALU_SRL;
                                 reg_we   =  `ENABLE;
@@ -384,118 +364,242 @@ module decoder (
                             end
                         endcase
                     end
-                endcase
-            end
-            `OP: begin                          
-                case (funct3)
-                    3'b000: begin
-                        case (funct5[3])
-                            1'b0: begin  // ADD
-                                alucode  =  `ALU_ADD;
-                                reg_we   =  `ENABLE;
-                                is_load  =  `DISABLE;
-                                is_store =  `DISABLE;
-                                aluop1_type = `OP_TYPE_REG;
-                                aluop2_type = `OP_TYPE_REG;
-                                op_type  =  `TYPE_R;
-                                dst_type =  `REG_RD;
-                            end
-                            1'b1: begin  // SUB
-                                alucode  =  `ALU_SUB;
-                                reg_we   =  `ENABLE;
-                                is_load  =  `DISABLE;
-                                is_store =  `DISABLE;
-                                aluop1_type = `OP_TYPE_REG;
-                                aluop2_type = `OP_TYPE_REG;
-                                op_type  =  `TYPE_R;
-                                dst_type =  `REG_RD;
-                            end
-                        endcase
-                    end
-                    3'b001: begin  // SLL
-                        alucode  =  `ALU_SLL;
-                        reg_we   =  `ENABLE;
-                        is_load  =  `DISABLE;
-                        is_store =  `DISABLE;
-                        aluop1_type = `OP_TYPE_REG;
-                        aluop2_type = `OP_TYPE_REG;
-                        op_type  =  `TYPE_R;
-                        dst_type =  `REG_RD;
-                    end
-                    3'b010: begin  // SLT
-                        alucode  =  `ALU_SLT;
-                        reg_we   =  `ENABLE;
-                        is_load  =  `DISABLE;
-                        is_store =  `DISABLE;
-                        aluop1_type = `OP_TYPE_REG;
-                        aluop2_type = `OP_TYPE_REG;
-                        op_type  =  `TYPE_R;
-                        dst_type =  `REG_RD;
-                    end                                
-                    3'b011: begin  // SLTU
-                        alucode  =  `ALU_SLTU;
-                        reg_we   =  `ENABLE;
-                        is_load  =  `DISABLE;
-                        is_store =  `DISABLE;
-                        aluop1_type = `OP_TYPE_REG;
-                        aluop2_type = `OP_TYPE_REG;
-                        op_type  =  `TYPE_R;
-                        dst_type =  `REG_RD;
-                    end
-                    3'b100: begin  // XOR
-                        alucode  =  `ALU_XOR;
-                        reg_we   =  `ENABLE;
-                        is_load  =  `DISABLE;
-                        is_store =  `DISABLE;
-                        aluop1_type = `OP_TYPE_REG;
-                        aluop2_type = `OP_TYPE_REG;
-                        op_type  =  `TYPE_R;
-                        dst_type =  `REG_RD;
-                    end
-                    3'b101: begin
-                        case (funct5[3])
-                            1'b0: begin  // SRL
-                                alucode  =  `ALU_SRL;
-                                reg_we   =  `ENABLE;
-                                is_load  =  `DISABLE;
-                                is_store =  `DISABLE;
-                                aluop1_type = `OP_TYPE_REG;
-                                aluop2_type = `OP_TYPE_REG;
-                                op_type  =  `TYPE_R;
-                                dst_type =  `REG_RD;
-                            end
-                            1'b1: begin  // SRA
-                                alucode  =  `ALU_SRA;
-                                reg_we   =  `ENABLE;
-                                is_load  =  `DISABLE;
-                                is_store =  `DISABLE;
-                                aluop1_type = `OP_TYPE_REG;
-                                aluop2_type = `OP_TYPE_REG;
-                                op_type  =  `TYPE_R;
-                                dst_type =  `REG_RD;
-                            end
-                        endcase
-                    end
-                    3'b110: begin  // OR
+                    3'b110: begin  // ORI
                         alucode  =  `ALU_OR;
                         reg_we   =  `ENABLE;
                         is_load  =  `DISABLE;
                         is_store =  `DISABLE;
                         aluop1_type = `OP_TYPE_REG;
-                        aluop2_type = `OP_TYPE_REG;
-                        op_type  =  `TYPE_R;
+                        aluop2_type = `OP_TYPE_IMM;
+                        op_type  =  `TYPE_I;
                         dst_type =  `REG_RD;
                     end
-                    3'b111: begin  // AND
+                    3'b111: begin  // ANDI
                         alucode  =  `ALU_AND;
                         reg_we   =  `ENABLE;
                         is_load  =  `DISABLE;
                         is_store =  `DISABLE;
                         aluop1_type = `OP_TYPE_REG;
-                        aluop2_type = `OP_TYPE_REG;
-                        op_type  =  `TYPE_R;
+                        aluop2_type = `OP_TYPE_IMM;
+                        op_type  =  `TYPE_I;
                         dst_type =  `REG_RD;
                     end
+                endcase
+            end
+            `OP: begin
+                case (funct7)
+                   7'b0000000: begin
+                      case (funct3)
+                           3'b000: begin  // ADD
+                              alucode  =  `ALU_ADD;
+                              reg_we   =  `ENABLE;
+                              is_load  =  `DISABLE;
+                              is_store =  `DISABLE;
+                              aluop1_type = `OP_TYPE_REG;
+                              aluop2_type = `OP_TYPE_REG;
+                              op_type  =  `TYPE_R;
+                              dst_type =  `REG_RD;
+                          end
+                          3'b001: begin  // SLL
+                              alucode  =  `ALU_SLL;
+                              reg_we   =  `ENABLE;
+                              is_load  =  `DISABLE;
+                              is_store =  `DISABLE;
+                              aluop1_type = `OP_TYPE_REG;
+                              aluop2_type = `OP_TYPE_REG;
+                              op_type  =  `TYPE_R;
+                              dst_type =  `REG_RD;
+                          end
+                          3'b010: begin  // SLT
+                              alucode  =  `ALU_SLT;
+                              reg_we   =  `ENABLE;
+                              is_load  =  `DISABLE;
+                              is_store =  `DISABLE;
+                              aluop1_type = `OP_TYPE_REG;
+                              aluop2_type = `OP_TYPE_REG;
+                              op_type  =  `TYPE_R;
+                              dst_type =  `REG_RD;
+                          end
+                          3'b011: begin  // SLTU
+                              alucode  =  `ALU_SLTU;
+                              reg_we   =  `ENABLE;
+                              is_load  =  `DISABLE;
+                              is_store =  `DISABLE;
+                              aluop1_type = `OP_TYPE_REG;
+                              aluop2_type = `OP_TYPE_REG;
+                              op_type  =  `TYPE_R;
+                              dst_type =  `REG_RD;
+                          end
+                          3'b100: begin  // XOR
+                              alucode  =  `ALU_XOR;
+                              reg_we   =  `ENABLE;
+                              is_load  =  `DISABLE;
+                              is_store =  `DISABLE;
+                              aluop1_type = `OP_TYPE_REG;
+                              aluop2_type = `OP_TYPE_REG;
+                              op_type  =  `TYPE_R;
+                              dst_type =  `REG_RD;
+                          end
+                          3'b101: begin        // SRL
+                              alucode  =  `ALU_SRL;
+                              reg_we   =  `ENABLE;
+                              is_load  =  `DISABLE;
+                              is_store =  `DISABLE;
+                              aluop1_type = `OP_TYPE_REG;
+                              aluop2_type = `OP_TYPE_REG;
+                              op_type  =  `TYPE_R;
+                              dst_type =  `REG_RD;
+                          end
+                          3'b110: begin  // OR
+                              alucode  =  `ALU_OR;
+                              reg_we   =  `ENABLE;
+                              is_load  =  `DISABLE;
+                              is_store =  `DISABLE;
+                              aluop1_type = `OP_TYPE_REG;
+                              aluop2_type = `OP_TYPE_REG;
+                              op_type  =  `TYPE_R;
+                              dst_type =  `REG_RD;
+                          end
+                          3'b111: begin  // AND
+                              alucode  =  `ALU_AND;
+                              reg_we   =  `ENABLE;
+                              is_load  =  `DISABLE;
+                              is_store =  `DISABLE;
+                              aluop1_type = `OP_TYPE_REG;
+                              aluop2_type = `OP_TYPE_REG;
+                              op_type  =  `TYPE_R;
+                              dst_type =  `REG_RD;
+                          end
+                        endcase
+                    end
+                    7'b0100000: begin
+                        case (funct3)
+                           3'b000: begin  // SUB
+                               alucode  =  `ALU_SUB;
+                               reg_we   =  `ENABLE;
+                               is_load  =  `DISABLE;
+                               is_store =  `DISABLE;
+                               aluop1_type = `OP_TYPE_REG;
+                               aluop2_type = `OP_TYPE_REG;
+                               op_type  =  `TYPE_R;
+                               dst_type =  `REG_RD;
+                           end
+                           3'b101: begin  // SRA
+                               alucode  =  `ALU_SRA;
+                               reg_we   =  `ENABLE;
+                               is_load  =  `DISABLE;
+                               is_store =  `DISABLE;
+                               aluop1_type = `OP_TYPE_REG;
+                               aluop2_type = `OP_TYPE_REG;
+                               op_type  =  `TYPE_R;
+                               dst_type =  `REG_RD;
+                           end
+                           default: begin // invalid
+                               alucode  =  `ALU_NOP;
+                               reg_we   =  `DISABLE;
+                               is_load  =  `DISABLE;
+                               is_store =  `DISABLE;
+                               aluop1_type =  `OP_TYPE_NONE;
+                               aluop2_type =  `OP_TYPE_NONE;
+                               op_type  =  `TYPE_NONE;
+                               dst_type =  `REG_NONE;
+                           end
+                       endcase
+                    end
+                    7'b0000001: begin
+                        case (funct3)
+                          3'b000: begin
+                              alucode  =  `ALU_MUL;
+                              reg_we   =  `ENABLE;
+                              is_load  =  `DISABLE;
+                              is_store =  `DISABLE;
+                              aluop1_type = `OP_TYPE_REG;
+                              aluop2_type = `OP_TYPE_REG;
+                              op_type  =  `TYPE_R;
+                              dst_type =  `REG_RD;
+                          end
+                          3'b001: begin
+                              alucode  =  `ALU_MULH;
+                              reg_we   =  `ENABLE;
+                              is_load  =  `DISABLE;
+                              is_store =  `DISABLE;
+                              aluop1_type = `OP_TYPE_REG;
+                              aluop2_type = `OP_TYPE_REG;
+                              op_type  =  `TYPE_R;
+                              dst_type =  `REG_RD;
+                          end
+                          3'b010: begin
+                              alucode  =  `ALU_MULHSU;
+                              reg_we   =  `ENABLE;
+                              is_load  =  `DISABLE;
+                              is_store =  `DISABLE;
+                              aluop1_type = `OP_TYPE_REG;
+                              aluop2_type = `OP_TYPE_REG;
+                              op_type  =  `TYPE_R;
+                              dst_type =  `REG_RD;
+                          end
+                          3'b011: begin
+                              alucode  =  `ALU_MULHU;
+                              reg_we   =  `ENABLE;
+                              is_load  =  `DISABLE;
+                              is_store =  `DISABLE;
+                              aluop1_type = `OP_TYPE_REG;
+                              aluop2_type = `OP_TYPE_REG;
+                              op_type  =  `TYPE_R;
+                              dst_type =  `REG_RD;
+                          end
+                          3'b100: begin
+                              alucode  =  `ALU_DIV;
+                              reg_we   =  `ENABLE;
+                              is_load  =  `DISABLE;
+                              is_store =  `DISABLE;
+                              aluop1_type = `OP_TYPE_REG;
+                              aluop2_type = `OP_TYPE_REG;
+                              op_type  =  `TYPE_R;
+                              dst_type =  `REG_RD;
+                          end
+                          3'b101: begin
+                              alucode  =  `ALU_DIVU;
+                              reg_we   =  `ENABLE;
+                              is_load  =  `DISABLE;
+                              is_store =  `DISABLE;
+                              aluop1_type = `OP_TYPE_REG;
+                              aluop2_type = `OP_TYPE_REG;
+                              op_type  =  `TYPE_R;
+                              dst_type =  `REG_RD;
+                          end
+                          3'b110: begin
+                              alucode  =  `ALU_REM;
+                              reg_we   =  `ENABLE;
+                              is_load  =  `DISABLE;
+                              is_store =  `DISABLE;
+                              aluop1_type = `OP_TYPE_REG;
+                              aluop2_type = `OP_TYPE_REG;
+                              op_type  =  `TYPE_R;
+                              dst_type =  `REG_RD;
+                          end
+                          3'b111: begin
+                              alucode  =  `ALU_REMU;
+                              reg_we   =  `ENABLE;
+                              is_load  =  `DISABLE;
+                              is_store =  `DISABLE;
+                              aluop1_type = `OP_TYPE_REG;
+                              aluop2_type = `OP_TYPE_REG;
+                              op_type  =  `TYPE_R;
+                              dst_type =  `REG_RD;
+                          end
+                       endcase
+                   end
+                   default: begin
+                       alucode  =  `ALU_NOP;
+                       reg_we   =  `DISABLE;
+                       is_load  =  `DISABLE;
+                       is_store =  `DISABLE;
+                       aluop1_type =  `OP_TYPE_NONE;
+                       aluop2_type =  `OP_TYPE_NONE;
+                       op_type  =  `TYPE_NONE;
+                       dst_type =  `REG_NONE;
+                   end
                 endcase
             end
             default: begin

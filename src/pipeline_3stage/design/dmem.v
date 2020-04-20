@@ -10,6 +10,7 @@ module dmem #(parameter byte_num = 2'b00) (
     input wire we,
     input wire [31:0] addr,
     input wire [7:0] wr_data,
+    input wire valid,
     output wire [7:0] rd_data
 );
 
@@ -26,8 +27,10 @@ module dmem #(parameter byte_num = 2'b00) (
     end
 
     always @(posedge clk) begin
-        if (we) mem[addr[13:2]] <= wr_data;  // 書き込みタイミングをクロックと同期することでBRAM化
-        addr_sync <= addr[13:2];  // 読み出しアドレス更新をクロックと同期することでBRAM化
+        if (valid) begin
+            if (we) mem[addr[13:2]] <= wr_data;  // 書き込みタイミングをクロックと同期することでBRAM化
+            addr_sync <= addr[13:2];             // 読み出しアドレス更新をクロックと同期することでBRAM化
+        end
     end
 
     assign rd_data = mem[addr_sync];

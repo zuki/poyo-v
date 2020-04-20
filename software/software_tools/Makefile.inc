@@ -44,7 +44,7 @@ CFLAGS = \
 	-mstrict-align \
 	-I$(INCLUDE_ROOT) \
 	-march=rv32im \
-	-mno-div \
+#	-mno-div \
 
 LDFLAGS= \
 	-static \

@@ -18,10 +18,13 @@ module cpu_top (
     wire rst_n;
     assign rst_n = ~rst;
 
+    // valid
+    wire valid;
+
     // PC
     wire [31:0] next_PC;
     wire [31:0] ex_br_addr;
-    wire ex_br_taken;
+    wire        ex_br_taken;
     reg [31:0] PC;
 
     // fetch stage関連の定義
@@ -29,7 +32,7 @@ module cpu_top (
 
     // execution stage関連の定義
     reg [31:0] ex_PC;
-    
+
     // decoder
     wire [31:0] decoder_insn;
     wire [4:0] decoder_srcreg1_num, decoder_srcreg2_num, ex_dstreg_num;
@@ -46,13 +49,16 @@ module cpu_top (
     // ALU
     wire [5:0] alu_alucode;
     wire [31:0] alu_op1, alu_op2, ex_alu_result;
-    
+    wire [31:0] ex_alu_result_i, ex_alu_result_m, ex_alu_result_d;
+
     wire [31:0] ex_srcreg1_value, ex_srcreg2_value, ex_store_value;
+    wire        ex_br_taken_i;
+    wire        ex_div_valid;
 
     // dmem
     wire [3:0] dmem_we;
     wire [31:0] dmem_addr;
-    wire [7:0] dmem_wr_data [3:0]; 
+    wire [7:0] dmem_wr_data [3:0];
     wire [7:0] dmem_rd_data [3:0];
 
     // UART TX
@@ -88,7 +94,7 @@ module cpu_top (
 
     //====================================================================
     // program counter
-    //====================================================================   
+    //====================================================================
 
     // ex stageの結果をフォワーディング
     assign next_PC = (rst_n == 1'b0) ? PC + 32'd4 : ex_br_taken ? ex_br_addr + 32'd4 : PC + 32'd4;
@@ -96,7 +102,7 @@ module cpu_top (
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             PC <= 32'd0;
-        end else begin
+        end else if (valid) begin
             PC <= next_PC;
         end
     end
@@ -111,13 +117,14 @@ module cpu_top (
     imem imem (
         .clk(clk),
         .addr(imem_addr),
+        .valid(valid),
         .rd_data(imem_rd_data)
     );
-    
+
     always @(posedge clk or negedge rst_n) begin
         if(!rst_n) begin
             ex_PC <= 32'd0;
-        end else begin
+        end else if (valid) begin
             ex_PC <= imem_addr;
         end
     end
@@ -149,6 +156,7 @@ module cpu_top (
     regfile regfile_0 (
         .clk(clk),
         .we(regfile_we),
+        .valid(valid),
         .srcreg1_num(regfile_srcreg1_num),
         .srcreg2_num(regfile_srcreg2_num),
         .dstreg_num(regfile_dstreg_num),
@@ -162,9 +170,9 @@ module cpu_top (
     assign alu_alucode = ex_alucode;
 
     // wb stageの結果をフォワーディング
-    assign ex_srcreg1_value = (regfile_srcreg1_num==5'd0) ? 32'd0 : 
+    assign ex_srcreg1_value = (regfile_srcreg1_num==5'd0) ? 32'd0 :
                               (wb_reg_we && (decoder_srcreg1_num == wb_dstreg_num)) ? wb_dstreg_value : regfile_srcreg1_value;
-    assign ex_srcreg2_value = (regfile_srcreg2_num==5'd0) ? 32'd0 : 
+    assign ex_srcreg2_value = (regfile_srcreg2_num==5'd0) ? 32'd0 :
                               (wb_reg_we && (decoder_srcreg2_num == wb_dstreg_num)) ? wb_dstreg_value : regfile_srcreg2_value;
 
     assign alu_op1 = (ex_aluop1_type == `OP_TYPE_REG) ? ex_srcreg1_value :
@@ -178,9 +186,28 @@ module cpu_top (
         .alucode(alu_alucode),
         .op1(alu_op1),
         .op2(alu_op2),
-        .alu_result(ex_alu_result),
-        .br_taken(ex_br_taken)
+        .alu_result(ex_alu_result_i),
+        .br_taken(ex_br_taken_i)
     );
+
+    alu_mul alu_mul0 (
+        .alucode(alu_alucode),
+        .op1(alu_op1),
+        .op2(alu_op2),
+        .alu_result(ex_alu_result_m)
+    );
+
+    alu_div alu_div0(
+        .clk(clk), .rst(rst_n), .alucode(alu_alucode),
+        .op1(alu_op1), .op2(alu_op2), .valid(ex_div_valid),
+        .alu_result(ex_alu_result_d)
+    );
+
+    assign ex_alu_result =
+        ((alu_alucode >= `ALU_MUL) && (alu_alucode <= `ALU_MULHU)) ? ex_alu_result_m :
+        ((alu_alucode >= `ALU_DIV) && (alu_alucode <= `ALU_REMU))  ? ex_alu_result_d : ex_alu_result_i;
+    assign ex_br_taken = ((alu_alucode >= `ALU_MUL) && (alu_alucode <= `ALU_REMU)) ? `DISABLE : ex_br_taken_i;
+    assign valid = ((alu_alucode !== 6'bx) && (alu_alucode >= `ALU_DIV) && (alu_alucode <= `ALU_REMU)) ? ex_div_valid : 1'b1;
 
     assign ex_store_value = ((ex_alucode == `ALU_SW) || (ex_alucode == `ALU_SH) || (ex_alucode == `ALU_SB)) ? ex_srcreg2_value : 32'd0;
 
@@ -189,7 +216,7 @@ module cpu_top (
                         ((ex_alucode==`ALU_BEQ) || (ex_alucode==`ALU_BNE) || (ex_alucode==`ALU_BLT) ||
                          (ex_alucode==`ALU_BGE) || (ex_alucode==`ALU_BLTU) || (ex_alucode==`ALU_BGEU)) ? ex_PC + decoder_imm : 32'd0;
 
-    
+
     // store
     assign dmem_addr = ex_alu_result - `DMEM_START_ADDR;  // データメモリの読出しアドレスを変換
 
@@ -199,7 +226,7 @@ module cpu_top (
         input [1:0] alu_result,
         input [31:0] store_value
     );
-        
+
         begin
             if (is_store) begin
                 case (alucode)
@@ -219,25 +246,25 @@ module cpu_top (
                             2'b10: dmem_wr_data_sel = {8'd0, store_value[7:0], 16'd0};
                             2'b11: dmem_wr_data_sel = {store_value[7:0], 24'd0};
                         endcase
-                    end                    
+                    end
                     default: dmem_wr_data_sel = store_value;
                 endcase
             end else begin
                 dmem_wr_data_sel = 32'd0;
             end
         end
-        
+
     endfunction
 
     assign {dmem_wr_data[3], dmem_wr_data[2], dmem_wr_data[1], dmem_wr_data[0]} = dmem_wr_data_sel(ex_is_store, ex_alucode, ex_alu_result[1:0], ex_store_value);
 
-    
+
     function [3:0] dmem_we_sel(
         input is_store,
         input [5:0] alucode,
         input [1:0] alu_result
     );
-        
+
         begin
             if (is_store) begin
                 case (alucode)
@@ -257,14 +284,14 @@ module cpu_top (
                             2'b10: dmem_we_sel = 4'b0100;
                             2'b11: dmem_we_sel = 4'b1000;
                         endcase
-                    end                    
+                    end
                     default: dmem_we_sel = 4'b0000;
                 endcase
             end else begin
                 dmem_we_sel = 4'b0000;
             end
         end
-        
+
     endfunction
 
     // メモリマップのデータメモリにあたるアドレスが指定されていれば書き込み有効化
@@ -276,33 +303,37 @@ module cpu_top (
         .we(dmem_we[0]),
         .addr(dmem_addr),
         .wr_data(dmem_wr_data[0]),
+        .valid(valid),
         .rd_data(dmem_rd_data[0])
     );
-    
+
     dmem #(.byte_num(2'b01)) dmem_1 (
         .clk(clk),
         .we(dmem_we[1]),
         .addr(dmem_addr),
         .wr_data(dmem_wr_data[1]),
+        .valid(valid),
         .rd_data(dmem_rd_data[1])
     );
-    
+
     dmem #(.byte_num(2'b10)) dmem_2 (
         .clk(clk),
         .we(dmem_we[2]),
         .addr(dmem_addr),
         .wr_data(dmem_wr_data[2]),
+        .valid(valid),
         .rd_data(dmem_rd_data[2])
     );
-    
+
     dmem #(.byte_num(2'b11)) dmem_3 (
         .clk(clk),
         .we(dmem_we[3]),
         .addr(dmem_addr),
         .wr_data(dmem_wr_data[3]),
+        .valid(valid),
         .rd_data(dmem_rd_data[3])
     );
-    
+
 
     // UART
     assign uart_data_in = ex_store_value[7:0];
@@ -355,7 +386,7 @@ module cpu_top (
         .hc_out(hc_value)
     );
 
-    
+
     // パイプラインレジスタ
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -381,7 +412,7 @@ module cpu_top (
     assign gpi_value = {28'd0, gpi_data_out[3:0]};
     assign gpo_value = {28'd0, gpo_data_out[3:0]};
     assign uart_value = {24'd0, uart_rd_data};
-    
+
     function [31:0] load_value_sel(
         input is_load,
         input [5:0] alucode,
@@ -392,7 +423,7 @@ module cpu_top (
         input [31:0] gpi_value,
         input [31:0] gpo_value
     );
-        
+
         begin
             if (is_load) begin
                 case (alucode)
@@ -440,19 +471,19 @@ module cpu_top (
                             2'b10: load_value_sel = {24'd0, dmem_rd_data_2};
                             2'b11: load_value_sel = {24'd0, dmem_rd_data_3};
                         endcase
-                    end 
+                    end
                     default: load_value_sel = {dmem_rd_data_3, dmem_rd_data_2, dmem_rd_data_1, dmem_rd_data_0};
                 endcase
             end else begin
                 load_value_sel = 32'd0;
             end
         end
-        
+
     endfunction
 
     assign wb_load_value = load_value_sel(wb_is_load, wb_alucode, wb_alu_result, dmem_rd_data[0],
                                           dmem_rd_data[1], dmem_rd_data[2], dmem_rd_data[3], uart_value, hc_value, gpi_value, gpo_value);
-    
+
     assign wb_dstreg_value = wb_is_load ? wb_load_value : wb_alu_result;
 
     // wb stageの結果に応じてレジスタへ書き込み
