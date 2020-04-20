@@ -5,6 +5,11 @@
 # リポジトリのルートディレクトリの場所を環境に合わせて指定(要変更)
 PROJECT_ROOT = $(HOME)/develop/max1000/poyo-v
 
+FPGA_PROJECT_PATH = $(PROJECT_ROOT)/fpga
+FPGA_PROJECT = poyo_v
+FPGA_PROJECT_REVISION = poyo_v
+
+
 # GCCのインストールパスを環境に合わせて指定(要変更)
 GCC_DIR = /usr/local/riscv32im
 

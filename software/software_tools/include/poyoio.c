@@ -37,20 +37,44 @@ void serial_write(char c) {
     *output_addr = c;
 }
 
+void serial_write_str(char *s) {
+    while(*s != '\0') {
+      serial_write(*s);
+      ++s;
+    }
+}
+
+void serial_write_int(int n) {
+    int i;
+    char c;
+
+    for (i = 28; i >= 0; i -= 4) {
+        c = ((n >> i) & 0x0f);
+        if (c >= 10) {
+            // ASCIIコードのA-F
+            c = c - 10 + 'A';
+        } else {
+            // ASCIIコードの0-9
+            c += '0';
+        }
+        serial_write(c);
+    }
+}
+
 
 char serial_read() {
-    
+
     volatile int* input_addr = UART_RX_ADDR;
     char c;
 
     c = *input_addr;
-    
+
     return c;
 }
 
 
 void delay(unsigned int time) {
-    
+
     volatile unsigned int* input_addr = HARDWARE_COUNTER_ADDR;
     unsigned int start_cycle = *input_addr;
 

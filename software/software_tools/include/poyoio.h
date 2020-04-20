@@ -21,6 +21,8 @@
 void digital_write(int pin, int vol);
 int digital_read(int pin);
 void serial_write(char c);
+void serial_write_str(char *s);
+void serial_write_int(int n);
 char serial_read();
 void delay(unsigned int time);
 

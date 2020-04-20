@@ -41,6 +41,15 @@ app.hex: app.bin
 code.hex data.hex: app.hex
 	$(HEX_CONVERTER) $<
 
+# update the memory files inside the FPGA bitfile
+update-mem: all
+	cd ${FPGA_PROJECT_PATH} && quartus_cdb ${FPGA_PROJECT} -c ${FPGA_PROJECT_REVISION} --update_mif
+	cd ${FPGA_PROJECT_PATH} && quartus_asm --read_settings_files=on --write_settings_files=off ${FPGA_PROJECT} -c ${FPGA_PROJECT_REVISION}
+
+# download the bitfile to your board
+download:
+	cd ${FPGA_PROJECT_PATH} && quartus_pgm -c "Arrow-USB-Blaster [USB0]" -m jtag -o P\;output_files/${FPGA_PROJECT_REVISION}.sof@1
+
 
 .PHONY: clean
 clean:
