@@ -56,10 +56,11 @@ module cpu_top (
     wire        ex_div_valid;
 
     // dmem
-    wire [3:0] dmem_we;
+    wire dmem_we;
     wire [31:0] dmem_addr;
-    wire [7:0] dmem_wr_data [3:0];
-    wire [7:0] dmem_rd_data [3:0];
+    wire [31:0] dmem_wr_data;
+    wire [31:0] dmem_rd_data;
+    wire [3:0]  dmem_byteenable;
 
     // UART TX
     wire uart_we;
@@ -91,7 +92,6 @@ module cpu_top (
     reg [31:0] wb_alu_result;
     wire [31:0] wb_load_value, wb_dstreg_value;
 
-
     //====================================================================
     // program counter
     //====================================================================
@@ -114,11 +114,11 @@ module cpu_top (
     // ex stageの結果をフォワーディング
     assign imem_addr = (rst_n == 1'b0) ? 32'd0 : ex_br_taken ? ex_br_addr : PC;
 
-    imem imem (
-        .clk(clk),
-        .addr(imem_addr),
-        .valid(valid),
-        .rd_data(imem_rd_data)
+    rom rom_inst (
+        .clock   (clk),
+        .address (imem_addr[13:2]),
+        .rden    (valid),
+        .q       (imem_rd_data)
     );
 
     always @(posedge clk or negedge rst_n) begin
@@ -218,122 +218,62 @@ module cpu_top (
 
 
     // store
-    assign dmem_addr = ex_alu_result - `DMEM_START_ADDR;  // データメモリの読出しアドレスを変換
+    assign dmem_addr = ex_alu_result - `DMEM_START_ADDR;  // データメモリの読出しアドレスを変換;
 
     function [31:0] dmem_wr_data_sel(
         input is_store,
         input [5:0] alucode,
-        input [1:0] alu_result,
+        input [1:0] byte_offset,
         input [31:0] store_value
     );
-
         begin
             if (is_store) begin
                 case (alucode)
                     `ALU_SW: dmem_wr_data_sel = store_value;
-                    `ALU_SH: begin
-                        case (alu_result)
-                            2'b00: dmem_wr_data_sel = {16'd0, store_value[15:0]};
-                            2'b01: dmem_wr_data_sel = {8'd0, store_value[15:0], 8'd0};
-                            2'b10: dmem_wr_data_sel = {store_value[15:0], 16'd0};
-                            default: dmem_wr_data_sel = {16'd0, store_value[15:0]};
-                        endcase
-                    end
-                    `ALU_SB: begin
-                        case (alu_result)
-                            2'b00: dmem_wr_data_sel = {24'd0, store_value[7:0]};
-                            2'b01: dmem_wr_data_sel = {16'd0, store_value[7:0], 8'd0};
-                            2'b10: dmem_wr_data_sel = {8'd0, store_value[7:0], 16'd0};
-                            2'b11: dmem_wr_data_sel = {store_value[7:0], 24'd0};
-                        endcase
-                    end
+                    `ALU_SH: dmem_wr_data_sel = ({16'd0, store_value[15:0]} << (byte_offset * 8));
+                    `ALU_SB: dmem_wr_data_sel = ({24'd0, store_value[7:0]} << (byte_offset * 8));
                     default: dmem_wr_data_sel = store_value;
                 endcase
             end else begin
                 dmem_wr_data_sel = 32'd0;
             end
         end
-
     endfunction
 
-    assign {dmem_wr_data[3], dmem_wr_data[2], dmem_wr_data[1], dmem_wr_data[0]} = dmem_wr_data_sel(ex_is_store, ex_alucode, ex_alu_result[1:0], ex_store_value);
-
+    assign dmem_wr_data = dmem_wr_data_sel(ex_is_store, ex_alucode, ex_alu_result[1:0], ex_store_value);
 
     function [3:0] dmem_we_sel(
         input is_store,
         input [5:0] alucode,
-        input [1:0] alu_result
+        input [1:0] byte_offset
     );
-
         begin
             if (is_store) begin
                 case (alucode)
                     `ALU_SW: dmem_we_sel = 4'b1111;
-                    `ALU_SH: begin
-                        case (alu_result)
-                            2'b00: dmem_we_sel = 4'b0011;
-                            2'b01: dmem_we_sel = 4'b0110;
-                            2'b10: dmem_we_sel = 4'b1100;
-                            default: dmem_we_sel = 4'b0000;
-                        endcase
-                    end
-                    `ALU_SB: begin
-                        case (alu_result)
-                            2'b00: dmem_we_sel = 4'b0001;
-                            2'b01: dmem_we_sel = 4'b0010;
-                            2'b10: dmem_we_sel = 4'b0100;
-                            2'b11: dmem_we_sel = 4'b1000;
-                        endcase
-                    end
+                    `ALU_SH: dmem_we_sel = (4'b0011 << byte_offset);
+                    `ALU_SB: dmem_we_sel = (4'b0001 << byte_offset);
                     default: dmem_we_sel = 4'b0000;
                 endcase
             end else begin
                 dmem_we_sel = 4'b0000;
             end
         end
-
     endfunction
 
+    assign dmem_byteenable = dmem_we_sel(ex_is_store, ex_alucode, ex_alu_result[1:0]) ;
+
     // メモリマップのデータメモリにあたるアドレスが指定されていれば書き込み有効化
-    assign dmem_we = (dmem_addr <= `DMEM_SIZE) ? dmem_we_sel(ex_is_store, ex_alucode, ex_alu_result[1:0]) : 4'd0;
+    assign dmem_we = (dmem_addr <= `DMEM_SIZE) && |dmem_byteenable && valid;
 
-
-    dmem #(.byte_num(2'b00)) dmem_0 (
-        .clk(clk),
-        .we(dmem_we[0]),
-        .addr(dmem_addr),
-        .wr_data(dmem_wr_data[0]),
-        .valid(valid),
-        .rd_data(dmem_rd_data[0])
+    ram ram_inst (
+        .clock   ( clk ),
+        .address ( dmem_addr[13:2] ),
+        .byteena ( dmem_byteenable ),
+        .data    ( dmem_wr_data ),
+        .wren    ( dmem_we ),
+        .q       ( dmem_rd_data )
     );
-
-    dmem #(.byte_num(2'b01)) dmem_1 (
-        .clk(clk),
-        .we(dmem_we[1]),
-        .addr(dmem_addr),
-        .wr_data(dmem_wr_data[1]),
-        .valid(valid),
-        .rd_data(dmem_rd_data[1])
-    );
-
-    dmem #(.byte_num(2'b10)) dmem_2 (
-        .clk(clk),
-        .we(dmem_we[2]),
-        .addr(dmem_addr),
-        .wr_data(dmem_wr_data[2]),
-        .valid(valid),
-        .rd_data(dmem_rd_data[2])
-    );
-
-    dmem #(.byte_num(2'b11)) dmem_3 (
-        .clk(clk),
-        .we(dmem_we[3]),
-        .addr(dmem_addr),
-        .wr_data(dmem_wr_data[3]),
-        .valid(valid),
-        .rd_data(dmem_rd_data[3])
-    );
-
 
     // UART
     assign uart_data_in = ex_store_value[7:0];
@@ -481,8 +421,8 @@ module cpu_top (
 
     endfunction
 
-    assign wb_load_value = load_value_sel(wb_is_load, wb_alucode, wb_alu_result, dmem_rd_data[0],
-                                          dmem_rd_data[1], dmem_rd_data[2], dmem_rd_data[3], uart_value, hc_value, gpi_value, gpo_value);
+    assign wb_load_value = load_value_sel(wb_is_load, wb_alucode, wb_alu_result, dmem_rd_data[7:0],
+                                          dmem_rd_data[15:8], dmem_rd_data[23:16], dmem_rd_data[31:24], uart_value, hc_value, gpi_value, gpo_value);
 
     assign wb_dstreg_value = wb_is_load ? wb_load_value : wb_alu_result;
 

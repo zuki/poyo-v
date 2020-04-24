@@ -4,8 +4,6 @@
 	.global _end
 	.extern main
 
-	stack_top = 0x8000
-
 _start:
 	j  init_reg
 
@@ -44,8 +42,19 @@ init_reg:
 	li  x29, 0
 	li  x30, 0
 	li  x31, 0
-	li	sp, 0x8000
+	la  t0, _stack_top
+	add	sp, zero, t0
+
+## init bss
+	la	t0, _sbss
+	la	t1, _ebss
+	j		.L5
+.L4:
+	sw	zero, 0(t0)
+	add	t0, t0, 4
+.L5:
+	bltu	t0, t1, .L4
 
 call_main:
 	call  main
-   	j  _end
+  j  _end

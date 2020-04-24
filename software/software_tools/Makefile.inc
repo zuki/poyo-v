@@ -3,7 +3,7 @@
 #
 
 # リポジトリのルートディレクトリの場所を環境に合わせて指定(要変更)
-PROJECT_ROOT = $(HOME)/develop/max1000/poyo-v
+PROJECT_ROOT = $(HOME)/develop/max1000/poyo-v.intel
 
 FPGA_PROJECT_PATH = $(PROJECT_ROOT)/fpga
 FPGA_PROJECT = poyo_v
@@ -48,6 +48,7 @@ CFLAGS = \
 
 LDFLAGS= \
 	-static \
+	-Map=$(@:.elf=.map) \
 
 LIBC =
 LIBGCC = \
@@ -76,3 +77,7 @@ MEM_INIT = $(TOOLS_ROOT)/mem_init.hex
 # .hex形式ファイル生成ツールの指定
 HEX_CONVERTER = \
 	python3 $(TOOLS_ROOT)/hex_converter.py
+
+# .mif形式ファイル生成ツールの指定
+MIF_CONVERTER = \
+	$(TOOLS_ROOT)/bin2mif

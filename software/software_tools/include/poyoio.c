@@ -37,10 +37,16 @@ void serial_write(char c) {
     *output_addr = c;
 }
 
+void serial_write_len(char *s) {
+  int l = 0;
+  while(*s++)
+    l += 1;
+  serial_write_int(l);
+}
+
 void serial_write_str(char *s) {
-    while(*s != '\0') {
-      serial_write(*s);
-      ++s;
+    while(*s) {
+      serial_write(*s++);
     }
 }
 

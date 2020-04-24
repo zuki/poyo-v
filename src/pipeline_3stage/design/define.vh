@@ -4,7 +4,7 @@
 
 
 // プログラムが格納されたディレクトリの絶対パスを指定
-`define MEM_DATA_PATH "/home/vagrant/develop/max1000/poyo-v/software/mul_div/"
+`define MEM_DATA_PATH "/home/vagrant/develop/max1000/poyo-v/software/test"
 
 // システムクロックの周波数とその半分の値を指定
 `define SYSCLK_FREQ 48000000

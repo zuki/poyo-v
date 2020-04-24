@@ -44,3 +44,18 @@ int main(void) {
 
   return 0;
 }
+
+/*
+(220-10)*3
+ok
+(10-20)*3
+ok
+(20-10)/3
+bad: expected 00000003, but get 00000000
+(20-10)%3
+ok
+((10-20)/3
+bad: expected FFFFFFFD, but get 00000003
+(10-20)%3
+ok
+*/
